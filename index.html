@@ -37,6 +37,20 @@
           <option value="suncare">Suncare</option>
           <option value="fragrance">Fragrance</option>
         </select>
+        <!-- Product Search Field -->
+        <input
+          type="text"
+          id="productSearch"
+          placeholder="Search products..."
+          style="
+            margin-left: 12px;
+            flex: 2;
+            font-size: 18px;
+            padding: 16px;
+            border: 2px solid #000;
+            border-radius: 8px;
+          "
+        />
       </div>
 
       <!-- Products Grid -->
@@ -49,6 +63,14 @@
         <button id="generateRoutine" class="generate-btn">
           <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Routine
         </button>
+      </div>
+      <!-- Saved Products List -->
+      <div class="saved-products">
+        <h2>Saved Products</h2>
+        <!-- This list will show products saved in localStorage -->
+        <ul id="saved-products"></ul>
+        <!-- Button to clear all saved products -->
+        <button id="clear-all">Clear All Saved Products</button>
       </div>
 
       <!------- Chat Area ------->
@@ -88,5 +110,6 @@
     <!-- secrets.js can be removed when using Cloudflare Workers for API requests -->
     <script src="secrets.js"></script>
     <script src="script.js"></script>
+    <!-- Make sure script.js is loaded after the saved products section -->
   </body>
 </html>
