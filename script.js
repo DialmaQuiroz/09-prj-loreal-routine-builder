@@ -265,6 +265,96 @@ if (productSearch) {
 }
 
 /* --- Chatbot Integration --- */
+
+// --- Chatbot shared state and helpers (move to top-level scope) ---
+
+// Conversation history for multi-turn context
+const conversation = [
+  {
+    role: "system",
+    content: `You are a friendly and helpful assistant who's an expert on L'Oreal products.
+You help people find the best skincare and haircare routines based on their needs and selected products.
+Your responses should be concise, informative, and include current information about L'Oréal products or routines using agentic web search with reasoning.
+If relevant, include links or citations to sources you find.
+You always refer to L'Oreal's official website for product details and avoid making up information.
+If you don't know the answer, you politely say you don't know and ask for more details about their skincare or haircare needs.
+Politely refuse to answer questions unrelated to L'Oreal products, routines, recommendations, beauty-related topics, makeup, or skincare advice.`,
+  },
+];
+
+// Helper function to add a message bubble to the chat window
+function addMessageBubble(content, sender) {
+  const chatWindow = document.getElementById("chatWindow");
+  if (!chatWindow) return;
+  const bubble = document.createElement("div");
+  bubble.classList.add("msg");
+  bubble.classList.add(sender === "user" ? "user" : "ai");
+  bubble.innerHTML = content.replace(/\n/g, "<br>");
+  chatWindow.appendChild(bubble);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+// Async function to call the Cloudflare Worker with full conversation history
+async function callCloudflareWorker() {
+  const chatWindow = document.getElementById("chatWindow");
+  addMessageBubble("Thinking...🤔", "bot");
+  try {
+    const response = await fetch(
+      "https://chatbot-worker.u1381801.workers.dev/",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messages: conversation }),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("API request failed");
+    }
+
+    const data = await response.json();
+    // The Cloudflare Worker wraps the OpenAI response inside 'data'
+    const aiData = data.data;
+
+    if (
+      !aiData ||
+      !aiData.choices ||
+      !aiData.choices[0] ||
+      !aiData.choices[0].message ||
+      !aiData.choices[0].message.content
+    ) {
+      addMessageBubble(
+        "Sorry, I didn't get a valid response from the AI. Please try again.",
+        "bot"
+      );
+      return;
+    }
+
+    const aiReply = aiData.choices[0].message.content.trim();
+    conversation.push({ role: "assistant", content: aiReply });
+
+    // Remove loading indicator
+    const loadingMsg = chatWindow.querySelector(".msg.ai:last-child");
+    if (loadingMsg && loadingMsg.textContent === "Thinking...🤔") {
+      chatWindow.removeChild(loadingMsg);
+    }
+
+    addMessageBubble(aiReply, "bot");
+  } catch (error) {
+    const loadingMsg = chatWindow.querySelector(".msg.ai:last-child");
+    if (loadingMsg && loadingMsg.textContent === "Thinking...🤔") {
+      chatWindow.removeChild(loadingMsg);
+    }
+    addMessageBubble(
+      "Sorry, something went wrong. Please try again later.",
+      "bot"
+    );
+    console.error("Error:", error);
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // Get DOM elements for chatbot
   const chatForm = document.getElementById("chatForm");
@@ -294,16 +384,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "😊 Hello! I'm here to help with all your L'Oreal beauty questions.",
   ];
 
-  // Helper function to add a message bubble to the chat window
-  function addMessageBubble(content, sender) {
-    const bubble = document.createElement("div");
-    bubble.classList.add("msg");
-    bubble.classList.add(sender === "user" ? "user" : "ai");
-    bubble.innerHTML = content.replace(/\n/g, "<br>");
-    chatWindow.appendChild(bubble);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-  }
-
   // Show a random greeting on page load
   chatWindow.innerHTML = "";
   addMessageBubble(
@@ -311,80 +391,6 @@ document.addEventListener("DOMContentLoaded", () => {
     "bot"
   );
   userQuestionDisplay.textContent = "";
-
-  // Cloudflare Worker endpoint
-  const workerUrl = "https://chatbot-worker.u1381801.workers.dev/";
-
-  // Conversation history for multi-turn context
-  const conversation = [
-    {
-      role: "system",
-      content: `You are a friendly and helpful assistant who's an expert on L'Oreal products. 
-You help people find the best skincare and haircare routines based on their needs. 
-Your responses should be concise, informative, and include current information about L'Oréal products or routines using agentic web search with reasoning. 
-If relevant, include links or citations to sources you find. 
-You always refer to L'Oreal's official website for product details and avoid making up information. 
-If you don't know the answer, you politely say you don't know and ask for more details about their skincare or haircare needs. 
-Politely refuse to answer questions unrelated to L'Oreal products, routines, recommendations, beauty-related topics, makeup, or skincare advice.`,
-    },
-  ];
-
-  // Async function to call the Cloudflare Worker with full conversation history
-  async function callCloudflareWorker() {
-    addMessageBubble("Thinking...🤔", "bot");
-    try {
-      const response = await fetch(workerUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ messages: conversation }),
-      });
-
-      if (!response.ok) {
-        throw new Error("API request failed");
-      }
-
-      const data = await response.json();
-      // The Cloudflare Worker wraps the OpenAI response inside 'data'
-      const aiData = data.data;
-
-      if (
-        !aiData ||
-        !aiData.choices ||
-        !aiData.choices[0] ||
-        !aiData.choices[0].message ||
-        !aiData.choices[0].message.content
-      ) {
-        addMessageBubble(
-          "Sorry, I didn't get a valid response from the AI. Please try again.",
-          "bot"
-        );
-        return;
-      }
-
-      const aiReply = aiData.choices[0].message.content.trim();
-      conversation.push({ role: "assistant", content: aiReply });
-
-      // Remove loading indicator
-      const loadingMsg = chatWindow.querySelector(".msg.ai:last-child");
-      if (loadingMsg && loadingMsg.textContent === "Thinking...🤔") {
-        chatWindow.removeChild(loadingMsg);
-      }
-
-      addMessageBubble(aiReply, "bot");
-    } catch (error) {
-      const loadingMsg = chatWindow.querySelector(".msg.ai:last-child");
-      if (loadingMsg && loadingMsg.textContent === "Thinking...🤔") {
-        chatWindow.removeChild(loadingMsg);
-      }
-      addMessageBubble(
-        "Sorry, something went wrong. Please try again later.",
-        "bot"
-      );
-      console.error("Error:", error);
-    }
-  }
 
   // Handle form submit
   chatForm.addEventListener("submit", (e) => {
@@ -430,13 +436,16 @@ if (generateBtn) {
       return;
     }
 
-    // Add a user message to conversation with selected products JSON
+    // Add a user message to conversation with selected products JSON and clear instructions
     conversation.push({
       role: "user",
       content:
         `Here are the products I've selected:\n` +
         JSON.stringify(selectedProductsInfo, null, 2) +
-        `\nPlease create a personalized beauty routine using these products.`,
+        `\nPlease create a step-by-step personalized beauty routine using only these L'Oréal products. 
+Explain the order to use them, what each step does, and any tips for best results. 
+Only use the products listed above and follow L'Oréal's official guidelines. 
+If you need more info, ask me!`,
     });
 
     // Call the AI routine generator
